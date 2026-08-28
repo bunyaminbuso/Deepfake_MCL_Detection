@@ -1,4 +1,9 @@
+import sys
 import os
+# Python'ın 'utils' ve diğer modülleri bulabilmesi için yol tanımı
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
+import glob
 import torch
 import torch.nn.functional as F
 from models.mcl_model import MultimodalContrastiveModel
@@ -52,10 +57,20 @@ class DeepfakeDetector:
 
 if __name__ == "__main__":
     detector = DeepfakeDetector()
-    # Örnek test çağrısı (Sistemde video yoksa korumalı dummy veriyle çalışır)
-    result = detector.predict("data/test_video.mp4")
     
-    print("\n--- ANALİZ SONUCU ---")
-    print(f"Ses-Görüntü Uyum Skoru : {result['similarity_score']}")
-    print(f"Deepfake Olasılığı      : %{result['fake_probability']}")
-    print(f"Nihai Karar             : {result['verdict']}")
+    # data/real ve data/fake klasörlerindeki tüm videoları otomatik bulur
+    video_files = []
+    for folder in ["data/real", "data/fake"]:
+        for ext in ('*.mp4', '*.avi', '*.mov', '*.mkv'):
+            video_files.extend(glob.glob(os.path.join(folder, ext)))
+    
+    if len(video_files) == 0:
+        print("\n[UYARI] Klasörlerde video bulunamadı. Lütfen 'data/real' veya 'data/fake' içine video ekleyin.")
+    else:
+        print(f"\n================ TOPLU TEST BAŞLATILDI ({len(video_files)} Video) ================")
+        for v_path in video_files:
+            result = detector.predict(v_path)
+            print(f"  └─ Ses-Görüntü Uyum Skoru : {result['similarity_score']}")
+            print(f"  └─ Deepfake Olasılığı     : %{result['fake_probability']}")
+            print(f"  └─ Nihai Karar            : {result['verdict']}")
+        print("\n=======================================================")
