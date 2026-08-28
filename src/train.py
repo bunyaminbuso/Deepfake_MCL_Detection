@@ -1,10 +1,15 @@
+import sys
 import os
+# Python'ın üst klasördeki modülleri bulabilmesi için yol tanımı
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader, random_split
-from datasets.dataset import AdvancedMultimodalDataset
+from datasets.dataset import RealVideoDataset
 from models.mcl_model import MultimodalContrastiveModel
 from models.mcl_loss import MultimodalContrastiveLoss
+from utils.augmenter import MultimodalAugmenter
 
 def calculate_accuracy(v_embed, a_embed, threshold=0.5):
     """
@@ -17,18 +22,20 @@ def calculate_accuracy(v_embed, a_embed, threshold=0.5):
 
 def train_pipeline():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    print(f"--- EĞİTİM MOTORU BAŞLATILDI [Cihaz: {device}] ---")
+    print(f"--- TAM DONANIMLI GÜRÜLTÜ DESTEKLİ EĞİTİM MOTORU [{device}] ---")
 
-    # 1. Veri Setini Train / Validation Olarak Bölme (%80 Eğitim, %20 Doğrulama)
-    full_dataset = AdvancedMultimodalDataset(num_samples=100)
+    # 1. Veri Yükleyici (%80 Train, %20 Validation) ve Gürültü Katmanı
+    full_dataset = RealVideoDataset()
+    augmenter = MultimodalAugmenter(noise_factor=0.03)
+
     train_size = int(0.8 * len(full_dataset))
     val_size = len(full_dataset) - train_size
     train_dataset, val_dataset = random_split(full_dataset, [train_size, val_size])
 
-    train_loader = DataLoader(train_dataset, batch_size=8, shuffle=True)
-    val_loader = DataLoader(val_dataset, batch_size=8, shuffle=False)
+    train_loader = DataLoader(train_dataset, batch_size=2, shuffle=True)
+    val_loader = DataLoader(val_dataset, batch_size=2, shuffle=False)
 
-    # 2. Model, Loss, Optimizer ve Scheduler
+    # 2. Model, Loss, Optimizer ve LR Scheduler
     model = MultimodalContrastiveModel().to(device)
     criterion = MultimodalContrastiveLoss().to(device)
     optimizer = torch.optim.AdamW(model.parameters(), lr=0.0003, weight_decay=1e-4)
@@ -45,8 +52,12 @@ def train_pipeline():
         for v_batch, a_batch, _ in train_loader:
             v_batch, a_batch = v_batch.to(device), a_batch.to(device)
             
+            # Veriye Gürültü Dayanıklılığı (Augmentation) Uygulama
+            v_batch_noisy = augmenter.apply_visual_noise(v_batch)
+            a_batch_noisy = augmenter.apply_audio_noise(a_batch)
+
             optimizer.zero_grad()
-            v_embed, a_embed = model(v_batch, a_batch)
+            v_embed, a_embed = model(v_batch_noisy, a_batch_noisy)
             loss = criterion(v_embed, a_embed)
             
             loss.backward()
@@ -73,14 +84,14 @@ def train_pipeline():
         avg_val_loss = val_loss / len(val_loader)
         avg_val_acc = val_acc / len(val_loader)
 
-        # Öğrenme oranını güncelle
+        # Learning Rate Takibi ve Güncellemesi
         scheduler.step(avg_val_loss)
 
         print(f"Epoch [{epoch+1}/{epochs}] "
               f"| Train Loss: {avg_train_loss:.4f} - Acc: %{avg_train_acc*100:.1f} "
               f"| Val Loss: {avg_val_loss:.4f} - Acc: %{avg_val_acc*100:.1f}")
 
-        # En iyi modeli Checkpoint olarak kaydet
+        # En İyi Modeli Checkpoint Olarak Kaydetme
         if avg_val_loss < best_val_loss:
             best_val_loss = avg_val_loss
             torch.save(model.state_dict(), "checkpoints/best_mcl_model.pt")
