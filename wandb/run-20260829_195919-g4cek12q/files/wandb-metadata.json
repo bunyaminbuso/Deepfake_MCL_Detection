@@ -1,0 +1,40 @@
+{
+  "os":  "Windows-11-10.0.26200-SP0",
+  "python":  "CPython 3.13.12",
+  "startedAt":  "2026-08-29T16:59:19.147738Z",
+  "program":  "C:\\Users\\Bünyamin\\Desktop\\deep_fake_mcl_proje\\src\\train.py",
+  "codePath":  "src\\train.py",
+  "codePathLocal":  "src\\train.py",
+  "git":  {
+    "remote":  "https://github.com/bunyaminbuso/Deepfake_MCL_Detection.git",
+    "commit":  "208de3dc39ebb8b41b8383db2907351a5f24d8fe"
+  },
+  "email":  "bunyaminbuso@gmail.com",
+  "root":  "C:\\Users\\Bünyamin\\Desktop\\deep_fake_mcl_proje",
+  "host":  "BUSO",
+  "executable":  "C:\\Users\\Bünyamin\\Desktop\\deep_fake_mcl_proje\\venv\\Scripts\\python.exe",
+  "cpu_count":  10,
+  "cpu_count_logical":  16,
+  "gpu":  "NVIDIA GeForce RTX 3050 Laptop GPU",
+  "gpu_count":  1,
+  "disk":  {
+    "/":  {
+      "total":  "511150387200",
+      "used":  "190425690112"
+    }
+  },
+  "memory":  {
+    "total":  "16866484224"
+  },
+  "gpu_nvidia":  [
+    {
+      "name":  "NVIDIA GeForce RTX 3050 Laptop GPU",
+      "memoryTotal":  "4294967296",
+      "cudaCores":  2048,
+      "architecture":  "Ampere",
+      "uuid":  "GPU-7a505e07-e41f-a9ce-085d-4f65f133aad3"
+    }
+  ],
+  "cudaVersion":  "12.5",
+  "writerId":  "jm5tb4qsqpbmuk2u2nqqzhno6ijck4uh"
+}

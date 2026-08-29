@@ -1,0 +1,63 @@
+_wandb:
+    value:
+        cli_version: 0.29.0
+        e:
+            43806aat2kwgqol8yvbcf9aw4ib809mo:
+                codePath: src\train.py
+                codePathLocal: src\train.py
+                cpu_count: 10
+                cpu_count_logical: 16
+                cudaVersion: "12.5"
+                disk:
+                    /:
+                        total: "511150387200"
+                        used: "190671208448"
+                email: bunyaminbuso@gmail.com
+                executable: C:\Users\Bünyamin\Desktop\deep_fake_mcl_proje\venv\Scripts\python.exe
+                git:
+                    commit: 208de3dc39ebb8b41b8383db2907351a5f24d8fe
+                    remote: https://github.com/bunyaminbuso/Deepfake_MCL_Detection.git
+                gpu: NVIDIA GeForce RTX 3050 Laptop GPU
+                gpu_count: 1
+                gpu_nvidia:
+                    - architecture: Ampere
+                      cudaCores: 2048
+                      memoryTotal: "4294967296"
+                      name: NVIDIA GeForce RTX 3050 Laptop GPU
+                      uuid: GPU-7a505e07-e41f-a9ce-085d-4f65f133aad3
+                host: BUSO
+                memory:
+                    total: "16866484224"
+                os: Windows-11-10.0.26200-SP0
+                program: C:\Users\Bünyamin\Desktop\deep_fake_mcl_proje\src\train.py
+                python: CPython 3.13.12
+                root: C:\Users\Bünyamin\Desktop\deep_fake_mcl_proje
+                startedAt: "2026-08-29T21:25:58.885982Z"
+                writerId: 43806aat2kwgqol8yvbcf9aw4ib809mo
+        m: []
+        python_version: 3.13.12
+        t:
+            "1":
+                - 1
+            "2":
+                - 1
+                - 53
+            "3":
+                - 2
+                - 16
+            "4": 3.13.12
+            "5": 0.29.0
+            "8":
+                - 3
+            "12": 0.29.0
+            "13": windows-amd64
+architecture:
+    value: MCL-3DCNN-ResNet
+batch_size:
+    value: 2
+epochs:
+    value: 15
+learning_rate:
+    value: 0.0003
+noise_factor:
+    value: 0.03

@@ -1,0 +1,8 @@
+Downloading: "https://download.pytorch.org/models/resnet18-f37072fd.pth" to C:\Users\Bünyamin/.cache\torch\hub\checkpoints\resnet18-f37072fd.pth
+100%|████████████████████████████████████████████████████████████████████████| 44.7M/44.7M [02:23<00:00, 326kB/s]
+Epoch [1/5] | Train Loss: 0.0000 - Acc: %0.0 | Val Loss: 0.0000 - Acc: %0.0
+  --> En iyi model kaydedildi! (Val Loss: 0.0000)
+Epoch [2/5] | Train Loss: 0.0000 - Acc: %0.0 | Val Loss: 0.0000 - Acc: %0.0
+Epoch [3/5] | Train Loss: 0.0000 - Acc: %0.0 | Val Loss: 0.0000 - Acc: %0.0
+Epoch [4/5] | Train Loss: 0.0000 - Acc: %0.0 | Val Loss: 0.0000 - Acc: %0.0
+Epoch [5/5] | Train Loss: 0.0000 - Acc: %0.0 | Val Loss: 0.0000 - Acc: %0.0

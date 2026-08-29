@@ -32,7 +32,7 @@ def train_pipeline():
         config={
             "learning_rate": 0.0003,
             "architecture": "MCL-3DCNN-ResNet",
-            "epochs": 5,
+            "epochs": 15,
             "batch_size": 2,
             "noise_factor": 0.03
         }

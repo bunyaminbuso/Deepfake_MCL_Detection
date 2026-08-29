@@ -1,0 +1,6 @@
+Epoch [1/5] | Train Loss: 0.6933 - Acc: %0.0 | Val Loss: 0.0000 - Acc: %0.0
+  --> En iyi model kaydedildi! (Val Loss: 0.0000)
+Epoch [2/5] | Train Loss: 0.6929 - Acc: %0.0 | Val Loss: 0.0000 - Acc: %0.0
+Epoch [3/5] | Train Loss: 0.6947 - Acc: %0.0 | Val Loss: 0.0000 - Acc: %0.0
+Epoch [4/5] | Train Loss: 0.7066 - Acc: %0.0 | Val Loss: 0.0000 - Acc: %0.0
+Epoch [5/5] | Train Loss: 0.6936 - Acc: %0.0 | Val Loss: 0.0000 - Acc: %0.0
