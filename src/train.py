@@ -8,7 +8,7 @@ import torch.nn as nn
 from torch.utils.data import DataLoader, random_split
 import wandb
 
-from datasets.dataset import RealVideoDataset
+from dataset_loader.dataset import RealVideoDataset
 from models.mcl_model import MultimodalContrastiveModel
 from models.mcl_loss import MultimodalContrastiveLoss
 from utils.augmenter import MultimodalAugmenter
