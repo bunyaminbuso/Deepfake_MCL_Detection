@@ -1,18 +1,28 @@
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
-class SupervisedContrastiveLoss(nn.Module):
-    def __init__(self):
-        super(SupervisedContrastiveLoss, self).__init__()
+class MultimodalContrastiveLoss(nn.Module):
+    def __init__(self, temperature=0.07):
+        super(MultimodalContrastiveLoss, self).__init__()
+        self.temperature = temperature
 
-    def forward(self, v_embed, a_embed, labels):
-        # Cosine Benzerliği (-1.0 ile +1.0)
-        similarity = torch.sum(v_embed * a_embed, dim=1)
+    def forward(self, v_embed, a_embed):
+        # Vektörleri normalize et
+        v_embed = F.normalize(v_embed, dim=1)
+        a_embed = F.normalize(a_embed, dim=1)
         
-        # Gercek (0): Benzerligi +1'e yaklastir -> Loss = 1 - similarity
-        # Sahte  (1): Benzerligi -1'e yaklastir -> Loss = 1 + similarity
-        loss_real = (1.0 - similarity) * (1.0 - labels.float())
-        loss_fake = (1.0 + similarity) * labels.float()
+        # Benzerlik matrisi hesapla (Cosine Similarity)
+        logits = torch.matmul(v_embed, a_embed.T) / self.temperature
+        labels = torch.arange(v_embed.size(0)).to(v_embed.device)
         
-        total_loss = torch.mean(loss_real + loss_fake)
-        return total_loss
+        loss = F.cross_entropy(logits, labels)
+        return loss
+
+if __name__ == "__main__":
+    loss_fn = MultimodalContrastiveLoss()
+    v_dummy = torch.randn(16, 128)
+    a_dummy = torch.randn(16, 128)
+    loss = loss_fn(v_dummy, a_dummy)
+    print("--- LOSS TESTİ BAŞARILI ---")
+    print(f"Hesaplanan Kayıp Değeri: {loss.item():.4f}")
