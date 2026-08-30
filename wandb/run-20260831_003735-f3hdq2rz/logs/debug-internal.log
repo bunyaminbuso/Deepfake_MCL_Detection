@@ -1,0 +1,20 @@
+{"time":"2026-08-31T00:37:35.7296303+03:00","level":"INFO","msg":"wandb-core"}
+{"time":"2026-08-31T00:37:35.7351141+03:00","level":"INFO","msg":"stream: starting","core version":"0.29.0"}
+{"time":"2026-08-31T00:37:38.3503717+03:00","level":"INFO","msg":"stream: created new stream","id":"f3hdq2rz"}
+{"time":"2026-08-31T00:37:38.3533354+03:00","level":"INFO","msg":"handler: started"}
+{"time":"2026-08-31T00:37:38.3987214+03:00","level":"INFO","msg":"sender: started"}
+{"time":"2026-08-31T00:37:38.3987214+03:00","level":"INFO","msg":"writer: started","stream_id":"f3hdq2rz"}
+{"time":"2026-08-31T00:37:38.3987214+03:00","level":"INFO","msg":"stream: started"}
+{"time":"2026-08-31T00:37:45.1530395+03:00","level":"INFO","msg":"filestream: sending request","total_files":0,"uploaded_len":1}
+{"time":"2026-08-31T00:37:45.5620209+03:00","level":"INFO","msg":"filestream: request sent","status":"200 OK"}
+{"time":"2026-08-31T00:38:00.1538685+03:00","level":"INFO","msg":"filestream: sending request","total_files":1,"events_offset":0,"events_lines":2,"uploaded_len":1}
+{"time":"2026-08-31T00:38:00.5067628+03:00","level":"INFO","msg":"filestream: request sent","status":"200 OK"}
+{"time":"2026-08-31T00:38:07.5024535+03:00","level":"INFO","msg":"fileTransfer: Close: file transfer manager closed"}
+{"time":"2026-08-31T00:38:07.5031525+03:00","level":"INFO","msg":"filestream: sending request","total_files":3,"history_offset":0,"history_lines":5,"console_offset":0,"console_lines":6,"uploaded_len":3,"complete":true,"exit_code":0}
+{"time":"2026-08-31T00:38:07.8858352+03:00","level":"INFO","msg":"filestream: request sent","status":"200 OK"}
+{"time":"2026-08-31T00:38:07.9065145+03:00","level":"INFO","msg":"handler: operation stats","stats":{}}
+{"time":"2026-08-31T00:38:07.9215639+03:00","level":"INFO","msg":"stream: finishing up"}
+{"time":"2026-08-31T00:38:07.9215639+03:00","level":"INFO","msg":"handler: closed"}
+{"time":"2026-08-31T00:38:07.9231568+03:00","level":"INFO","msg":"sender: closed"}
+{"time":"2026-08-31T00:38:07.9231568+03:00","level":"INFO","msg":"stream: all finished"}
+{"time":"2026-08-31T00:38:09.9232652+03:00","level":"ERROR","msg":"stream: failed to shut down analytics","error":"shutdown errors: [failed to upload metrics: context deadline exceeded: retry-able request failure: body: too many concurrent telemetry requests context deadline exceeded]"}
