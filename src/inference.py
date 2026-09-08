@@ -24,16 +24,18 @@ class FaceLipSyncDetector:
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.face_cascade = None
         self.last_has_face = False
+        self.last_full_frames = None
         
         try:
-            if hasattr(cv2, 'CascadeClassifier'):
-                cascade_path = getattr(cv2.data, 'haarcascades', '') + 'haarcascade_frontalface_default.xml' if hasattr(cv2, 'data') else ''
-                if cascade_path and os.path.exists(cascade_path):
-                    self.face_cascade = cv2.CascadeClassifier(cascade_path)
-                else:
-                    self.face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
-                if self.face_cascade.empty():
-                    self.face_cascade = None
+            cascade_file = 'haarcascade_frontalface_default.xml'
+            if hasattr(cv2, 'data') and hasattr(cv2.data, 'haarcascades'):
+                p = os.path.join(cv2.data.haarcascades, cascade_file)
+                if os.path.exists(p):
+                    self.face_cascade = cv2.CascadeClassifier(p)
+            if self.face_cascade is None or self.face_cascade.empty():
+                self.face_cascade = cv2.CascadeClassifier(cascade_file)
+            if self.face_cascade.empty():
+                self.face_cascade = None
         except Exception:
             self.face_cascade = None
 
@@ -53,124 +55,164 @@ class FaceLipSyncDetector:
                 self.model_loaded = False
 
     def extract_video_frames(self, video_path, max_frames=30):
+        """
+        app.py uyumluluğu için SADECE VE SADECE tek bir NumPy dizisi (np.ndarray) döndürür.
+        """
         cap = cv2.VideoCapture(video_path)
-        frames = []
-        last_face_box = None
-        face_detected_count = 0
-
-        while cap.isOpened() and len(frames) < max_frames:
-            ret, frame = cap.read()
-            if not ret or frame is None:
-                break
+        if not cap.isOpened():
+            return np.zeros((1, 96, 96, 3), dtype=np.float32)
             
-            face_found = False
-            if self.face_cascade is not None:
+        total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+        if total_frames <= 0:
+            cap.release()
+            return np.zeros((1, 96, 96, 3), dtype=np.float32)
+
+        step = max(1, total_frames // max_frames)
+        frame_indices = [i * step for i in range(min(max_frames, total_frames))]
+        
+        raw_sampled_frames = []
+        for idx in frame_indices:
+            cap.set(cv2.CAP_PROP_POS_FRAMES, idx)
+            ret, frame = cap.read()
+            if ret and frame is not None:
+                raw_sampled_frames.append(frame)
+        cap.release()
+
+        if not raw_sampled_frames:
+            return np.zeros((1, 96, 96, 3), dtype=np.float32)
+
+        face_boxes = []
+        face_detected_count = 0
+        
+        if self.face_cascade is not None:
+            for frame in raw_sampled_frames:
                 try:
                     gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-                    # Çok kademeli yüz tespiti (Tom Cruise gibi açılı yüzleri kaçırmaz)
-                    faces = self.face_cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=3, minSize=(30, 30))
-                    if len(faces) == 0:
-                        faces = self.face_cascade.detectMultiScale(gray, scaleFactor=1.05, minNeighbors=2, minSize=(20, 20))
+                    faces = self.face_cascade.detectMultiScale(gray, scaleFactor=1.05, minNeighbors=2, minSize=(20, 20))
                     
                     if len(faces) > 0:
-                        last_face_box = max(faces, key=lambda b: b[2] * b[3])
-                        face_found = True
+                        best_face = max(faces, key=lambda b: b[2] * b[3])
+                        face_boxes.append(best_face)
                         face_detected_count += 1
+                    else:
+                        face_boxes.append(None)
                 except Exception:
-                    pass
-
-            if face_found and last_face_box is not None:
-                x, y, w, h = last_face_box
-                pad_w, pad_h = int(w * 0.1), int(h * 0.1)
-                x1, y1 = max(0, x - pad_w), max(0, y - pad_h)
-                x2, y2 = min(frame.shape[1], x + w + pad_w), min(frame.shape[0], y + h + pad_h)
-                crop = frame[y1:y2, x1:x2]
-            else:
-                crop = frame
-
-            rgb = cv2.cvtColor(crop, cv2.COLOR_BGR2RGB)
-            resized = cv2.resize(rgb, (96, 96))
-            frames.append(resized)
-            
-        cap.release()
-        
-        self.last_has_face = (face_detected_count > 2)
-        
-        if len(frames) == 0:
-            return None
-        
-        return np.array(frames, dtype=np.float32) / 255.0
-
-    def _calculate_artifact_score(self, raw_frames):
-        H, W = raw_frames.shape[1], raw_frames.shape[2]
-        
-        # Altyazı parazitini önlemek için alt %18'lik bölgeyi kırp
-        clean_frames = raw_frames[:, :int(H * 0.82), :, :] if not self.last_has_face else raw_frames
-
-        if self.last_has_face:
-            # --- YÜZ ODAKLI DEEPFAKE ANALİZİ (Tom Cruise, DeepFaceLab vb.) ---
-            diffs = np.diff(clean_frames, axis=0)
-            abs_diffs = np.abs(diffs)
-            
-            temporal_std = float(np.std(abs_diffs))
-            temporal_max = float(np.percentile(abs_diffs, 95))
-            
-            lap_vars = [cv2.Laplacian((f * 255).astype(np.uint8), cv2.CV_64F).var() for f in clean_frames]
-            mean_lap = float(np.mean(lap_vars))
-            std_lap = float(np.std(lap_vars))
-
-            fft_scores = []
-            for f in clean_frames:
-                gray = cv2.cvtColor((f * 255).astype(np.uint8), cv2.COLOR_RGB2GRAY)
-                f_shift = np.fft.fftshift(np.fft.fft2(gray))
-                magnitude = 20 * np.log(np.abs(f_shift) + 1e-8)
-                fft_scores.append(np.std(magnitude))
-            fft_std = float(np.std(fft_scores))
-            
-            # Deepfake dikiş ve zamansal titreme katsayıları
-            artifact_prob = (temporal_std * 110.0) + (std_lap * 0.12) + (fft_std * 0.85) + (temporal_max * 15.0)
-            
-            if mean_lap < 90.0 and std_lap > 4.5:
-                artifact_prob += 18.0
-
-            return min(98.5, max(5.0, artifact_prob))
+                    face_boxes.append(None)
         else:
-            # --- YÜZSÜZ GENEL VİDEO, ANİMASYON VE ALTYAZILI VİDEO ANALİZİ ---
-            diffs = np.diff(clean_frames, axis=0)
-            abs_diffs = np.abs(diffs)
-            
-            trimmed_diffs = np.clip(abs_diffs, 0, np.percentile(abs_diffs, 80))
-            temporal_std = float(np.std(trimmed_diffs))
+            face_boxes = [None] * len(raw_sampled_frames)
 
-            lap_vars = [cv2.Laplacian((f * 255).astype(np.uint8), cv2.CV_64F).var() for f in clean_frames]
-            std_lap = float(np.std(lap_vars))
+        self.last_has_face = (face_detected_count >= 1)
 
-            fft_mags = []
-            for f in clean_frames:
-                gray = cv2.cvtColor((f * 255).astype(np.uint8), cv2.COLOR_RGB2GRAY)
-                f_shift = np.fft.fftshift(np.fft.fft2(gray))
-                mag = 20 * np.log(np.abs(f_shift) + 1e-8)
-                fft_mags.append(mag)
-            
-            fft_mags = np.array(fft_mags)
-            fft_temporal_var = float(np.std(fft_mags, axis=0).mean())
-            
-            gen_ai_score = (temporal_std * 28.0) + (fft_temporal_var * 1.2) + (std_lap * 0.03)
+        last_valid_box = None
+        for box in face_boxes:
+            if box is not None:
+                last_valid_box = box
+                break
 
-            return min(88.0, max(5.0, gen_ai_score))
+        face_crops = []
+        full_crops = []
+        for i, frame in enumerate(raw_sampled_frames):
+            current_box = face_boxes[i] if face_boxes[i] is not None else last_valid_box
+            H, W, _ = frame.shape
+            
+            if current_box is not None:
+                x, y, w, h = current_box
+                pad_w, pad_h = int(w * 0.15), int(h * 0.15)
+                x1, y1 = max(0, x - pad_w), max(0, y - pad_h)
+                x2, y2 = min(W, x + w + pad_w), min(H, y + h + pad_h)
+                crop_face = frame[y1:y2, x1:x2]
+            else:
+                crop_face = frame[int(H * 0.1):int(H * 0.8), int(W * 0.15):int(W * 0.85)]
+
+            crop_full = frame[int(H * 0.08):int(H * 0.82), :]
+
+            rgb_face = cv2.cvtColor(crop_face, cv2.COLOR_BGR2RGB)
+            rgb_full = cv2.cvtColor(crop_full, cv2.COLOR_BGR2RGB)
+            
+            face_crops.append(cv2.resize(rgb_face, (96, 96)))
+            full_crops.append(cv2.resize(rgb_full, (96, 96)))
+
+        if not face_crops:
+            return np.zeros((1, 96, 96, 3), dtype=np.float32)
+
+        face_arr = np.array(face_crops, dtype=np.float32) / 255.0
+        self.last_full_frames = np.array(full_crops, dtype=np.float32) / 255.0
+
+        return face_arr
+
+    def _calculate_relative_artifact_score(self, face_frames, full_frames):
+        if face_frames is None or len(face_frames) < 2:
+            return 20.0
+
+        if full_frames is None:
+            full_frames = face_frames
+
+        seam_scores = []
+        chroma_scores = []
+        for f in face_frames:
+            img = (f * 255).astype(np.uint8)
+            gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
+            ycrcb = cv2.cvtColor(img, cv2.COLOR_RGB2YCrCb)
+            
+            h, w = gray.shape
+            inner_mask = np.zeros((h, w), dtype=np.uint8)
+            cv2.ellipse(inner_mask, (w // 2, h // 2), (int(w * 0.3), int(h * 0.35)), 0, 0, 360, 255, -1)
+            
+            lap = cv2.Laplacian(gray, cv2.CV_64F)
+            inner_var = np.var(lap[inner_mask == 255]) + 1e-5
+            outer_var = np.var(lap[inner_mask == 0]) + 1e-5
+            
+            seam_scores.append(outer_var / inner_var)
+
+            cr_in = np.mean(ycrcb[:, :, 1][inner_mask == 255])
+            cr_out = np.mean(ycrcb[:, :, 1][inner_mask == 0])
+            chroma_scores.append(abs(cr_in - cr_out))
+
+        mean_seam_ratio = float(np.mean(seam_scores))
+        mean_chroma_delta = float(np.mean(chroma_scores))
+
+        face_diff = np.abs(np.diff(face_frames, axis=0))
+        full_diff = np.abs(np.diff(full_frames, axis=0))
+
+        face_m = float(np.mean(face_diff)) + 1e-6
+        full_m = float(np.mean(full_diff)) + 1e-6
+        motion_ratio = face_m / full_m
+
+        fft_diffs = []
+        for f in face_frames:
+            gray = cv2.cvtColor((f * 255).astype(np.uint8), cv2.COLOR_RGB2GRAY)
+            f_shift = np.fft.fftshift(np.fft.fft2(gray))
+            mag = 20 * np.log(np.abs(f_shift) + 1e-8)
+            fft_diffs.append(np.std(mag))
+            
+        fft_std = float(np.std(fft_diffs))
+
+        z = (
+            (mean_seam_ratio - 1.15) * 4.0 +
+            (motion_ratio - 1.05) * 5.0 +
+            (mean_chroma_delta - 2.8) * 0.4 +
+            (fft_std - 1.9) * 2.5
+        )
+
+        prob = 1.0 / (1.0 + np.exp(-z)) * 100.0
+        return float(np.clip(prob, 5.0, 95.0))
 
     def predict(self, video_path):
         try:
-            raw_frames = self.extract_video_frames(video_path)
-            if raw_frames is None:
+            face_frames = self.extract_video_frames(video_path)
+            if face_frames is None or len(face_frames) == 0:
                 return {"error": "Video veya kare okunamadı."}
 
-            artifact_score = self._calculate_artifact_score(raw_frames)
+            full_frames = getattr(self, 'last_full_frames', face_frames)
+            artifact_score = self._calculate_relative_artifact_score(face_frames, full_frames)
 
+            model_prob = 0.0
+            has_model_pred = False
+            
             if self.model_loaded and self.model is not None and self.last_has_face:
                 try:
                     with torch.no_grad():
-                        v_tensor = torch.tensor(np.transpose(raw_frames, (3, 0, 1, 2))).unsqueeze(0).float().to(self.device)
+                        v_tensor = torch.tensor(np.transpose(face_frames, (3, 0, 1, 2))).unsqueeze(0).float().to(self.device)
                         a_tensor = torch.zeros((1, 1, 80, 100), device=self.device)
                         
                         try:
@@ -181,23 +223,22 @@ class FaceLipSyncDetector:
                         if isinstance(outputs, (tuple, list)):
                             outputs = outputs[0]
 
-                        raw_prob = torch.sigmoid(outputs).item() * 100.0 if outputs.numel() == 1 else F.softmax(outputs, dim=1)[0][1].item() * 100.0
-                        final_prob = round((raw_prob * 0.35) + (artifact_score * 0.65), 2)
-                        
-                        return {
-                            "fake_probability": final_prob,
-                            "verdict": "SAHTE (DEEPFAKE)" if final_prob > 50.0 else "GERÇEK (REAL)",
-                            "mode_used": "Hibrit Derin Öğrenme & Yüz Artefakt Analizörü"
-                        }
+                        model_prob = torch.sigmoid(outputs).item() * 100.0 if outputs.numel() == 1 else F.softmax(outputs, dim=1)[0][1].item() * 100.0
+                        has_model_pred = True
                 except Exception:
-                    pass
+                    has_model_pred = False
 
-            final_prob = round(artifact_score, 2)
-            mode = "Gelişmiş Dokusal & Zamansal Yüz Analizörü" if self.last_has_face else "GenAI Tam-Kare Yapay Zeka Video Analizörü"
-            
+            if has_model_pred:
+                final_prob = round((model_prob * 0.40) + (artifact_score * 0.60), 2)
+            else:
+                final_prob = round(artifact_score, 2)
+
+            verdict = "SAHTE (DEEPFAKE)" if final_prob >= 50.0 else "GERÇEK (REAL)"
+            mode = "Piksel Tabanlı Spektral Artefakt Analizörü"
+
             return {
                 "fake_probability": final_prob,
-                "verdict": "SAHTE (DEEPFAKE)" if final_prob > 50.0 else "GERÇEK (REAL)",
+                "verdict": verdict,
                 "mode_used": mode
             }
         except Exception as e:

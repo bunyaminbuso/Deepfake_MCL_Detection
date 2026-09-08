@@ -1,5 +1,6 @@
 import sys
 import os
+import time
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 sys.path.append(os.path.abspath(os.path.dirname(__file__)))
@@ -9,8 +10,39 @@ import tempfile
 import cv2
 import numpy as np
 import matplotlib.pyplot as plt
+import base64
 
 st.set_page_config(page_title="Deepfake Tespit Sistemi", page_icon="🔍", layout="wide")
+
+def play_suspense_sound(placeholder):
+    """Assets klasöründeki ilk ses dosyasını ismi ne olursa olsun bulur ve çalar"""
+    try:
+        assets_dir = "assets"
+        audio_path = None
+        mime_type = "audio/mpeg"
+        
+        if os.path.exists(assets_dir):
+            for file_name in os.listdir(assets_dir):
+                if file_name.lower().endswith(('.mp3', '.wav', '.mpeg', '.mpg')):
+                    audio_path = os.path.join(assets_dir, file_name)
+                    if file_name.lower().endswith('.wav'):
+                        mime_type = "audio/wav"
+                    break
+
+        if audio_path:
+            with open(audio_path, "rb") as f:
+                audio_bytes = f.read()
+            b64 = base64.b64encode(audio_bytes).decode()
+            audio_html = f"""
+                <audio autoplay loop style="display:none;">
+                    <source src="data:{mime_type};base64,{b64}" type="{mime_type}">
+                </audio>
+            """
+            placeholder.markdown(audio_html, unsafe_allow_html=True)
+        else:
+            st.warning("⚠️ 'assets' klasöründe ses dosyası bulunamadı!")
+    except Exception:
+        pass
 
 st.title("🔍 Deepfake & Ses-Yüz Senkronizasyon Analiz Paneli")
 st.write("Akademik Görsel Sinyal & Senkronizasyon Analiz Demosu")
@@ -36,10 +68,24 @@ if uploaded_file is not None:
     with col2:
         st.subheader("📊 Model Analiz Kararı")
         if st.button("Deepfake & Sinyal Analizini Başlat", use_container_width=True):
-            with st.spinner("Model çalışıyor, kareler ve frekans haritaları işleniyor..."):
-                detector = get_detector()
-                results = detector.predict(video_path)
-                raw_frames = detector.extract_video_frames(video_path)
+            audio_placeholder = st.empty()
+            play_suspense_sound(audio_placeholder)
+            
+            try:
+                start_time = time.time() # Zamanlayıcı başlatılır
+                
+                with st.spinner("Model çalışıyor, kareler ve frekans haritaları işleniyor..."):
+                    detector = get_detector()
+                    results = detector.predict(video_path)
+                    raw_frames = detector.extract_video_frames(video_path)
+                    
+                    # İşlem ne kadar hızlı biterse binsin tam 7 saniyeye tamamlar
+                    elapsed_time = time.time() - start_time
+                    if elapsed_time < 7.0:
+                        time.sleep(7.0 - elapsed_time)
+            finally:
+                # Tam 7 saniyenin sonunda sesi keser
+                audio_placeholder.empty()
             
             if "error" in results or raw_frames is None:
                 st.error(f"Hata: {results.get('error', 'Video okunamadı.')}")
