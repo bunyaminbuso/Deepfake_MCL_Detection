@@ -12,6 +12,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 sys.path.append(os.path.abspath(os.path.dirname(__file__)))
 
 import streamlit as st
+import streamlit.components.v1 as components
 
 # 1. SAYFA YAPILANDIRMASI (Tek ve en üstte)
 st.set_page_config(page_title="Deepfake MCL Tespit Sistemi", page_icon="🛡️", layout="wide")
@@ -29,7 +30,7 @@ def load_users():
         except Exception:
             pass
     default_users = {
-        "admin@example.com": {"password": "admin", "name": "Yönetici"}
+        "admin@example.com": {"password": "admin", "name": "Yönetici", "avatar": None}
     }
     save_users(default_users)
     return default_users
@@ -41,6 +42,57 @@ def save_users(users):
     except Exception as e:
         st.error(f"Kullanıcı kaydedilirken hata oluştu: {e}")
 
+# ---------------------------------------------------------
+# SES OYNATMA FONKSİYONU (Streamlit Component IFrame Engine)
+# ---------------------------------------------------------
+def play_audio(filename, loop=False):
+    """
+    Streamlit components.html kullanarak tarayıcıdan izinsiz oynatma (Autoplay)
+    engeline takılmayan izolasyonlu bir Iframe içinde ses çalar.
+    """
+    assets_dir = os.path.join(os.path.dirname(__file__), "assets")
+    file_path = os.path.join(assets_dir, filename)
+
+    if not os.path.exists(file_path):
+        st.warning(f"⚠️ Ses dosyası bulunamadı: assets/{filename}")
+        return
+
+    try:
+        with open(file_path, "rb") as f:
+            audio_bytes = f.read()
+        
+        b64 = base64.b64encode(audio_bytes).decode()
+        mime_type = "audio/wav" if filename.lower().endswith(".wav") else "audio/mpeg"
+        loop_attr = "loop" if loop else ""
+        rand_id = int(time.time() * 1000)
+
+        html_code = f"""
+        <!DOCTYPE html>
+        <html>
+        <head><meta charset="utf-8"></head>
+        <body style="margin:0; padding:0; background:transparent;">
+            <audio id="aud_{rand_id}" autoplay {loop_attr} style="display:none;">
+                <source src="data:{mime_type};base64,{b64}" type="{mime_type}">
+            </audio>
+            <script>
+                var a = document.getElementById("aud_{rand_id}");
+                if (a) {{
+                    a.volume = 1.0;
+                    var promise = a.play();
+                    if (promise !== undefined) {{
+                        promise.catch(function(error) {{
+                            console.log("Autoplay hatası:", error);
+                        }});
+                    }}
+                }}
+            </script>
+        </body>
+        </html>
+        """
+        components.html(html_code, height=0, width=0)
+    except Exception as e:
+        st.error(f"Ses çalınırken hata oluştu ({filename}): {e}")
+
 # 2. GÖRSEL TASARIM (Dark Glassmorphism & Neon CSS)
 custom_css = """
 <style>
@@ -49,7 +101,7 @@ custom_css = """
         background: linear-gradient(135deg, #090d16 0%, #0f172a 50%, #1a0b2e 100%) !important;
         color: #f1f5f9 !important;
     }
-    
+
     /* Neon Başlıklar */
     .hero-title {
         background: linear-gradient(90deg, #c084fc 0%, #6366f1 50%, #38bdf8 100%);
@@ -69,13 +121,35 @@ custom_css = """
     }
 
     /* Glassmorphic Form ve Kartlar */
-    div[data-testid="stForm"] {
+    div[data-testid="stForm"], .profile-card, .danger-card {
         background: rgba(15, 23, 42, 0.65) !important;
         border: 1px solid rgba(168, 85, 247, 0.3) !important;
         box-shadow: 0 12px 40px rgba(0, 0, 0, 0.7), 0 0 20px rgba(168, 85, 247, 0.15) !important;
         border-radius: 20px !important;
         padding: 2rem !important;
         backdrop-filter: blur(12px);
+    }
+
+    .danger-card {
+        border: 1px solid rgba(239, 68, 68, 0.4) !important;
+        box-shadow: 0 8px 30px rgba(239, 68, 68, 0.15) !important;
+    }
+
+    /* Avatar ve Profil Header */
+    .avatar-circle {
+        width: 70px;
+        height: 70px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, #6366f1 0%, #a855f7 100%);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 2rem;
+        font-weight: bold;
+        color: white;
+        box-shadow: 0 0 20px rgba(168, 85, 247, 0.5);
+        object-fit: cover;
+        border: 2px solid #a855f7;
     }
 
     /* Sekme Tasarımı */
@@ -162,39 +236,8 @@ if "authenticated" not in st.session_state:
 if "user_db" not in st.session_state:
     st.session_state["user_db"] = load_users()
 
-# Analiz Geçmişi Listesi
 if "history" not in st.session_state:
     st.session_state["history"] = []
-
-# Ses Çalma Fonksiyonu
-def play_suspense_sound(placeholder):
-    try:
-        assets_dir = "assets"
-        audio_path = None
-        mime_type = "audio/mpeg"
-        
-        if os.path.exists(assets_dir):
-            for file_name in os.listdir(assets_dir):
-                if file_name.lower().endswith(('.mp3', '.wav', '.mpeg', '.mpg')):
-                    audio_path = os.path.join(assets_dir, file_name)
-                    if file_name.lower().endswith('.wav'):
-                        mime_type = "audio/wav"
-                    break
-
-        if audio_path:
-            with open(audio_path, "rb") as f:
-                audio_bytes = f.read()
-            b64 = base64.b64encode(audio_bytes).decode()
-            audio_html = f"""
-                <audio autoplay loop style="display:none;">
-                    <source src="data:{mime_type};base64,{b64}" type="{mime_type}">
-                </audio>
-            """
-            placeholder.markdown(audio_html, unsafe_allow_html=True)
-        else:
-            st.warning("⚠️ 'assets' klasöründe ses dosyası bulunamadı!")
-    except Exception:
-        pass
 
 @st.cache_resource
 def get_detector():
@@ -224,6 +267,7 @@ if not st.session_state["authenticated"]:
                     user = st.session_state["user_db"].get(email)
                     if user and user["password"] == password:
                         st.session_state["authenticated"] = True
+                        st.session_state["user_email"] = email
                         st.session_state["user_name"] = user["name"]
                         st.success(f"Hoş geldiniz, {user['name']}!")
                         st.rerun()
@@ -244,11 +288,14 @@ if not st.session_state["authenticated"]:
                     elif not reg_email or not reg_password or not name:
                         st.error("❌ Lütfen tüm alanları doldurun.")
                     else:
-                        st.session_state["user_db"][reg_email] = {"password": reg_password, "name": name}
+                        st.session_state["user_db"][reg_email] = {
+                            "password": reg_password, 
+                            "name": name, 
+                            "avatar": None
+                        }
                         save_users(st.session_state["user_db"])
                         st.success("🎉 Kayıt başarılı! Giriş Yap sekmesinden oturum açabilirsiniz.")
 
-    # Giriş yapılmadıysa alt taraftaki analiz bölümünü çalıştırma
     st.stop()
 
 
@@ -256,21 +303,42 @@ if not st.session_state["authenticated"]:
 # 2. ANA UYGULAMA (Giriş Yapıldıysa Çalışacak Kısım)
 # ---------------------------------------------------------
 
-# Sol Sidebar
+current_email = st.session_state.get("user_email", "")
+current_user = st.session_state["user_db"].get(current_email, {})
+user_initial = current_user.get("name", "U")[0].upper() if current_user.get("name") else "U"
+user_avatar = current_user.get("avatar")
+
+# Profil Avatar HTML Yapısı
+if user_avatar:
+    avatar_html = f'<img src="{user_avatar}" class="avatar-circle" />'
+else:
+    avatar_html = f'<div class="avatar-circle">{user_initial}</div>'
+
+# Minimalist Sol Menü (Sidebar)
 with st.sidebar:
-    st.markdown("### 👤 Kullanıcı Profili")
-    st.info(f"**Aktif Oturum:** {st.session_state.get('user_name', 'Kullanıcı')}")
+    st.markdown(f"""
+        <div style="display: flex; align-items: center; gap: 15px; padding: 10px 0;">
+            {avatar_html}
+            <div>
+                <div style="font-weight: bold; font-size: 1.1rem; color: #f8fafc;">{current_user.get('name', 'Kullanıcı')}</div>
+                <div style="font-size: 0.85rem; color: #94a3b8;">{current_email}</div>
+            </div>
+        </div>
+    """, unsafe_allow_html=True)
+    
     st.markdown("---")
     if st.button("🚪 Çıkış Yap", use_container_width=True):
         st.session_state["authenticated"] = False
+        st.session_state["user_email"] = None
+        st.session_state["user_name"] = None
         st.rerun()
 
 # Ana Sayfa Başlığı
 st.markdown("<h1 class='hero-title'>🔍 Deepfake & Ses-Yüz Senkronizasyon Analiz Paneli</h1>", unsafe_allow_html=True)
 st.markdown("<p class='hero-subtitle'>Akademik Görsel Sinyal & Spektral Senkronizasyon Demosu</p>", unsafe_allow_html=True)
 
-# Ana Ekran Sekmeleri: Analiz ve Geçmiş
-main_tab1, main_tab2 = st.tabs(["🧪 Video Analizi", "📜 Analiz Geçmişi"])
+# Ana Ekran Sekmeleri
+main_tab1, main_tab2, main_tab3 = st.tabs(["🧪 Video Analizi", "📜 Analiz Geçmişi", "⚙️ Hesabım & Ayarlar"])
 
 # ----------------------------
 # SEKMELER 1: VIDEO ANALİZİ
@@ -292,8 +360,10 @@ with main_tab1:
         with col2:
             st.subheader("📊 Analiz Kararı")
             if st.button("Deepfake & Sinyal Analizini Başlat", use_container_width=True):
+                # 1. ADIM: "analiz.mp3" için geçici bir alan oluştur ve başlat
                 audio_placeholder = st.empty()
-                play_suspense_sound(audio_placeholder)
+                with audio_placeholder:
+                    play_audio("analiz.mp3", loop=True)
                 
                 try:
                     start_time = time.time()
@@ -306,9 +376,17 @@ with main_tab1:
                         elapsed_time = time.time() - start_time
                         if elapsed_time < 7.0:
                             time.sleep(7.0 - elapsed_time)
+                except Exception as ex:
+                    st.error(f"Analiz sırasında bir hata oluştu: {ex}")
                 finally:
+                    # Analiz sesini DOM'dan tamamen kaldır ve durdur
                     audio_placeholder.empty()
-                
+
+                # 2. ADIM: Analiz bittiği an "sonuc.mp3" için temiz bir IFrame açıp başlat
+                result_placeholder = st.empty()
+                with result_placeholder:
+                    play_audio("sonuc.mp3", loop=False)
+
                 if "error" in results or raw_frames is None:
                     st.error(f"Hata: {results.get('error', 'Video okunamadı.')}")
                 else:
@@ -316,10 +394,8 @@ with main_tab1:
                     verdict = results["verdict"]
                     mode = results["mode_used"]
 
-                    # Kare değişim sinyalini hesapla
                     diffs = np.mean(np.abs(np.diff(raw_frames, axis=0)), axis=(1, 2, 3))
 
-                    # Geçmişe kaydet (Tarih/Zaman olmadan)
                     st.session_state["history"].append({
                         "file_name": uploaded_file.name,
                         "prob": prob,
@@ -339,10 +415,8 @@ with main_tab1:
                     st.markdown("---")
                     st.subheader("📈 Akademik Görsel Sinyal Grafikleri")
 
-                    # Matplotlib Karanlık Tema Uyumlaştırması
                     plt.style.use('dark_background')
 
-                    # 1. Kare Kare Görsel Değişim Grafiği (Frame Difference Signal)
                     fig1, ax1 = plt.subplots(figsize=(7, 2.8), facecolor='#0f172a')
                     ax1.set_facecolor('#1e293b')
                     chart_color = '#ef4444' if prob > 50 else '#22c55e'
@@ -354,7 +428,6 @@ with main_tab1:
                     ax1.tick_params(colors='#94a3b8', labelsize=8)
                     st.pyplot(fig1)
 
-                    # 2. Ses-Görüntü Senkronizasyon Matrisi (Cross-Modal Heatmap)
                     fig2, ax2 = plt.subplots(figsize=(7, 3.2), facecolor='#0f172a')
                     ax2.set_facecolor('#1e293b')
                     T = len(diffs)
@@ -393,7 +466,6 @@ with main_tab2:
 
         st.markdown("---")
 
-        # Son yapılan analiz en üstte gözükecek şekilde ters sıralıyoruz
         for idx, item in enumerate(reversed(st.session_state["history"])):
             title_label = f"📹 Dosya: {item['file_name']} | Karar: {item['verdict']} (%{item['prob']})"
             
@@ -414,7 +486,6 @@ with main_tab2:
                     diffs_hist = item["diffs"]
                     plt.style.use('dark_background')
 
-                    # 1. Kare Kare Görsel Değişim Haritası Re-plot
                     fig_h1, ax_h1 = plt.subplots(figsize=(6, 2.3), facecolor='#0f172a')
                     ax_h1.set_facecolor('#1e293b')
                     chart_color = '#ef4444' if item['prob'] > 50 else '#22c55e'
@@ -426,7 +497,6 @@ with main_tab2:
                     ax_h1.tick_params(colors='#94a3b8', labelsize=7)
                     st.pyplot(fig_h1)
 
-                    # 2. Ses-Görüntü Senkronizasyon Haritası Re-plot
                     fig_h2, ax_h2 = plt.subplots(figsize=(6, 2.6), facecolor='#0f172a')
                     ax_h2.set_facecolor('#1e293b')
                     T_hist = len(diffs_hist)
@@ -440,3 +510,92 @@ with main_tab2:
                     ax_h2.set_title("Ses - Görüntü Senkronizasyon Korelasyon Haritası", color='#f8fafc', fontsize=9)
                     ax_h2.tick_params(colors='#94a3b8', labelsize=7)
                     st.pyplot(fig_h2)
+
+# ----------------------------
+# SEKMELER 3: HESABIM & AYARLAR
+# ----------------------------
+with main_tab3:
+    st.subheader("⚙️ Profil ve Hesap Yönetimi")
+    st.write("Hesap bilgilerinizi, profil resminizi ve güvenlik ayarlarınızı buradan yönetebilirsiniz.")
+    st.markdown("---")
+
+    col_left, col_right = st.columns([1, 1])
+
+    with col_left:
+        st.markdown("### ✏️ Profil Bilgileri")
+        
+        if user_avatar:
+            st.markdown(f'<div style="text-align:center; margin-bottom:15px;"><img src="{user_avatar}" style="width:110px; height:110px; border-radius:50%; object-fit:cover; border:3px solid #a855f7;"></div>', unsafe_allow_html=True)
+            if st.button("🗑️ Profil Resmini Kaldır", use_container_width=True):
+                st.session_state["user_db"][current_email]["avatar"] = None
+                save_users(st.session_state["user_db"])
+                st.success("Profil resmi kaldırıldı.")
+                st.rerun()
+        else:
+            st.info("💡 Henüz bir profil resmi yüklemediniz.")
+
+        with st.form("edit_profile_form"):
+            edit_name = st.text_input("Ad Soyad", value=current_user.get("name", ""))
+            st.text_input("E-Posta Adresi", value=current_email, disabled=True, help="E-posta adresi değiştirilemez.")
+            
+            uploaded_avatar = st.file_uploader("Yeni Profil Resmi Yükle (PNG/JPG)", type=["png", "jpg", "jpeg"])
+            
+            save_profile_btn = st.form_submit_button("Profil Bilgilerini Kaydet", use_container_width=True)
+
+            if save_profile_btn:
+                if not edit_name.strip():
+                    st.error("❌ Ad Soyad alanı boş bırakılamaz.")
+                else:
+                    st.session_state["user_db"][current_email]["name"] = edit_name.strip()
+                    st.session_state["user_name"] = edit_name.strip()
+                    
+                    if uploaded_avatar is not None:
+                        bytes_data = uploaded_avatar.read()
+                        b64_str = base64.b64encode(bytes_data).decode('utf-8')
+                        mime_type = uploaded_avatar.type
+                        st.session_state["user_db"][current_email]["avatar"] = f"data:{mime_type};base64,{b64_str}"
+
+                    save_users(st.session_state["user_db"])
+                    st.success("✅ Profil bilgileri başarıyla güncellendi!")
+                    st.rerun()
+
+    with col_right:
+        with st.form("change_pass_form"):
+            st.markdown("### 🔒 Güvenlik Ayarları")
+            old_pass = st.text_input("Mevcut Şifre", type="password", placeholder="••••••••")
+            new_pass1 = st.text_input("Yeni Şifre", type="password", placeholder="••••••••")
+            new_pass2 = st.text_input("Yeni Şifre (Tekrar)", type="password", placeholder="••••••••")
+
+            save_pass_btn = st.form_submit_button("Şifreyi Güncelle", use_container_width=True)
+
+            if save_pass_btn:
+                if old_pass != current_user.get("password"):
+                    st.error("❌ Mevcut şifrenizi hatalı girdiniz.")
+                elif not new_pass1 or len(new_pass1) < 4:
+                    st.error("❌ Yeni şifre en az 4 karakter olmalıdır.")
+                elif new_pass1 != new_pass2:
+                    st.error("❌ Yeni şifreler birbiriyle eşleşmiyor.")
+                else:
+                    st.session_state["user_db"][current_email]["password"] = new_pass1
+                    save_users(st.session_state["user_db"])
+                    st.success("🎉 Şifreniz başarıyla değiştirildi!")
+
+    st.markdown("<br><br>", unsafe_allow_html=True)
+
+    st.markdown("### 🚨 Tehlikeli Bölge")
+    with st.expander("Hesabı Kalıcı Olarak Sil / Kapat", expanded=False):
+        st.write("Hesabınızı sildiğinizde erişiminiz ve verileriniz sistemden tamamen kaldırılır.")
+        
+        del_pass = st.text_input("Silme İşlemini Onaylamak İçin Şifrenizi Girin", type="password", key="delete_pass_key")
+        
+        if st.button("🚨 Hesabımı Kalıcı Olarak Sil", use_container_width=True):
+            if del_pass == current_user.get("password"):
+                del st.session_state["user_db"][current_email]
+                save_users(st.session_state["user_db"])
+                st.session_state["authenticated"] = False
+                st.session_state["user_email"] = None
+                st.session_state["user_name"] = None
+                st.success("Hesabınız silindi.")
+                st.rerun()
+            else:
+                st.error("❌ Şifre hatalı. Hesabınız silinmedi.")
